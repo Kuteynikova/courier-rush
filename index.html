@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -142,10 +143,69 @@
             </div>
         </div>
 
+        <!-- In-Game Swipe Hint Overlay -->
+        <div id="swipe-hint"
+            style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 100; text-align: center;">
+            <div
+                style="position: relative; width: 220px; height: 220px; display: flex; align-items: center; justify-content: center;">
+                <!-- Up Chevron -->
+                <svg class="swipe-arrow" style="position: absolute; top: 0; animation-delay: 0s;" width="50" height="50"
+                    viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M17 11l-5-5-5 5M17 18l-5-5-5 5" />
+                </svg>
+                <!-- Down Chevron -->
+                <svg class="swipe-arrow" style="position: absolute; bottom: 0; animation-delay: 0.7s;" width="50"
+                    height="50" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M7 13l5 5 5-5M7 6l5 5 5-5" />
+                </svg>
+                <!-- Left Chevron -->
+                <svg class="swipe-arrow" style="position: absolute; left: 0; animation-delay: 0.35s;" width="50"
+                    height="50" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
+                </svg>
+                <!-- Right Chevron -->
+                <svg class="swipe-arrow" style="position: absolute; right: 0; animation-delay: 1.05s;" width="50"
+                    height="50" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M13 7l5 5-5 5M6 7l5 5-5 5" />
+                </svg>
+
+                <div
+                    style="background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 12px; backdrop-filter: blur(4px);">
+                    <h2
+                        style="color: white; margin: 0; text-shadow: 0 0 10px rgba(0,0,0,0.5); font-size: 24px; font-weight: 900; letter-spacing: 3px;">
+                        СВАЙП</h2>
+                </div>
+            </div>
+        </div>
+
         <div id="game-container"></div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
     <script src="js/game.js"></script>
+    <script>
+        // Extreme measure for iOS Safari: completely kill all native window scrolling
+        // and zooming on the entire webpage, except within the modal overlay.
+        let blockTouchParams = { passive: false };
+
+        function blockNativeScroll(e) {
+            // Allow touches on modals and all buttons (like the pause button)
+            if (!e.target.closest('.modal') && !e.target.closest('button')) {
+                e.preventDefault();
+            }
+        }
+
+        document.addEventListener('touchmove', blockNativeScroll, blockTouchParams);
+        document.addEventListener('touchstart', blockNativeScroll, blockTouchParams);
+
+        // Block double-tap to zoom
+        document.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+        }, blockTouchParams);
+    </script>
 </body>
 
 </html>

@@ -2,10 +2,10 @@
 const config = {
     type: Phaser.AUTO,
     scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 600,   // 15 tiles
-        height: 1080  // 27 tiles (Portrait 9:16 approx)
+        width: '100%',
+        height: '100%'
     },
     backgroundColor: '#333333',
     parent: 'game-container',
@@ -25,11 +25,11 @@ const config = {
 
 new Phaser.Game(config);
 
-// Constants
-const TILE_SIZE = 40;
-const MAP_WIDTH = 15;
-const MAP_HEIGHT = 27;
-const BLOCKS_PER_WAREHOUSE = 5;
+// Dynamic sizing based on viewport
+let TILE_SIZE = 40;
+let MAP_WIDTH = 15;
+let MAP_HEIGHT = 27;
+let blocksPerWarehouse = 5;
 
 // Enums for map types
 const TILE_TYPE = {
@@ -67,14 +67,14 @@ let pulseGraphics;
 
 let cars = [];
 const CAR_SPAWN_COUNT = 5; // Reduced to 5
-const CAR_SPEED_INTERVAL = 250; // Same speed as player (250ms per tile)
+const CAR_SPEED_INTERVAL = 900; // was 700. Slowed down ~30% for mobile
 
 let player;
 let playerDir = { x: 0, y: 0 };
 let nextDir = { x: 0, y: 0 };
 let isMoving = false;
 let moveTimer = 0;
-const MOVE_INTERVAL = 250; // ms per tile, slower for better control
+const MOVE_INTERVAL = 350; // ms per grid move ~ slowed down for better control, slower for better control
 let speedMultiplier = 1.0;
 let invulnerableTimer = 0;
 
@@ -99,6 +99,25 @@ function preload() {
 }
 
 function create() {
+    // Dynamic resize logic
+    // We want roughly 15 columns on screen width to match the original feel
+    let container = document.getElementById('ui-container');
+    let screenW = container.clientWidth;
+    let screenH = container.clientHeight;
+
+    // MAP_WIDTH dynamically scales to prevent tiny tiles on small phones
+    if (screenW < 500) {
+        MAP_WIDTH = 11;
+    } else {
+        MAP_WIDTH = 15;
+    }
+
+    TILE_SIZE = Math.floor(screenW / MAP_WIDTH);
+
+    // MAP_HEIGHT depends on how many TILE_SIZE blocks fit into the screen height
+    // Use floor to ensure we don't have partially cut-off tiles at the bottom
+    MAP_HEIGHT = Math.floor(screenH / TILE_SIZE);
+
     // Init Audio Context (resume on first interaction)
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     this.input.on('pointerdown', () => {
@@ -120,11 +139,17 @@ function create() {
 
     // Set camera bounds
     pcene = this;
-    this.cameras.main.setBounds(0, 0, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
+    let cam = this.cameras.main;
+    cam.setBounds(0, 0, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
+
+    // Statically center camera to perfectly align the map without microscopic panning
+    cam.scrollX = (MAP_WIDTH * TILE_SIZE - cam.width) / 2;
+    cam.scrollY = (MAP_HEIGHT * TILE_SIZE - cam.height) / 2;
 
     // Setup start button and pause logic
     document.getElementById('btn-start').addEventListener('click', () => {
         document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('swipe-hint').style.display = 'block';
         gamePaused = false;
         if (audioCtx.state === 'suspended') audioCtx.resume();
     });
@@ -145,6 +170,7 @@ function create() {
     if (document.getElementById('btn-finish-onboarding')) {
         document.getElementById('btn-finish-onboarding').addEventListener('click', () => {
             document.getElementById('onboarding-screen').style.display = 'none';
+            document.getElementById('swipe-hint').style.display = 'block';
             gamePaused = false;
             if (audioCtx.state === 'suspended') audioCtx.resume();
         });
@@ -168,21 +194,32 @@ function create() {
         loop: true
     });
     // Input handling
-    this.input.keyboard.on('keydown-UP', () => nextDir = { x: 0, y: -1 });
-    this.input.keyboard.on('keydown-DOWN', () => nextDir = { x: 0, y: 1 });
-    this.input.keyboard.on('keydown-LEFT', () => nextDir = { x: -1, y: 0 });
-    this.input.keyboard.on('keydown-RIGHT', () => nextDir = { x: 1, y: 0 });
+    const hideSwipeHint = () => {
+        let hint = document.getElementById('swipe-hint');
+        if (hint) hint.style.display = 'none';
+    };
+
+    this.input.keyboard.on('keydown-UP', () => { hideSwipeHint(); nextDir = { x: 0, y: -1 }; });
+    this.input.keyboard.on('keydown-DOWN', () => { hideSwipeHint(); nextDir = { x: 0, y: 1 }; });
+    this.input.keyboard.on('keydown-LEFT', () => { hideSwipeHint(); nextDir = { x: -1, y: 0 }; });
+    this.input.keyboard.on('keydown-RIGHT', () => { hideSwipeHint(); nextDir = { x: 1, y: 0 }; });
 
     // Swipe handling
     this.input.on('pointerup', (pointer) => {
         let dx = pointer.upX - pointer.downX;
         let dy = pointer.upY - pointer.downY;
+
+        // Hide hint if a swipe occurred
+        if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
+            hideSwipeHint();
+        }
+
         if (Math.abs(dx) > Math.abs(dy)) {
-            if (dx > 30) nextDir = { x: 1, y: 0 };
-            else if (dx < -30) nextDir = { x: -1, y: 0 };
+            if (dx > 15) nextDir = { x: 1, y: 0 };
+            else if (dx < -15) nextDir = { x: -1, y: 0 };
         } else {
-            if (dy > 30) nextDir = { x: 0, y: 1 };
-            else if (dy < -30) nextDir = { x: 0, y: -1 };
+            if (dy > 15) nextDir = { x: 0, y: 1 };
+            else if (dy < -15) nextDir = { x: 0, y: -1 };
         }
     });
 }
@@ -190,12 +227,8 @@ function create() {
 function update(time, delta) {
     if (gameTime <= GAME_END_TIME || gamePaused) return;
 
-    // Follow player with camera
-    if (pcene && player) {
-        let cam = pcene.cameras.main;
-        cam.scrollX = (player.x * TILE_SIZE + TILE_SIZE / 2) - cam.width / 2;
-        cam.scrollY = (player.y * TILE_SIZE + TILE_SIZE / 2) - cam.height / 2;
-    }
+    // Removed automatic camera following because the map is procedurally generated 
+    // to match viewport bounds. Pan calculation forced fractional jumping.
 
     pulseTimer += delta;
     drawPulses();
@@ -219,6 +252,7 @@ function update(time, delta) {
         moveTimer = 0;
 
         // Attempt to turn if nextDir is set and valid
+        let turnedThisFrame = false;
         if (nextDir.x !== 0 || nextDir.y !== 0) {
             let turnX = player.x + nextDir.x;
             let turnY = player.y + nextDir.y;
@@ -229,8 +263,10 @@ function update(time, delta) {
 
             if (canMoveTo(turnX, turnY)) {
                 playerDir = { x: nextDir.x, y: nextDir.y };
+                // ONLY clear nextDir when the turn is successful
                 nextDir = { x: 0, y: 0 };
                 isMoving = true;
+                turnedThisFrame = true;
             }
         }
 
@@ -295,12 +331,10 @@ function canMoveTo(tx, ty) {
     if (targetType === TILE_TYPE.HOUSE && playerTail.length === 0) return false;
 
     // Strict constraint: Can only enter a warehouse/house from a ROAD.
-    // Cannot move from Warehouse -> House, House -> Warehouse, or Warehouse -> Warehouse
-    let isTargetBuilding = (targetType === TILE_TYPE.WAREHOUSE || targetType === TILE_TYPE.HOUSE);
-    let isCurrentBuilding = (currentType === TILE_TYPE.WAREHOUSE || currentType === TILE_TYPE.HOUSE);
-
-    if (isCurrentBuilding && isTargetBuilding) {
-        return false;
+    if (targetType === TILE_TYPE.WAREHOUSE || targetType === TILE_TYPE.HOUSE) {
+        if (currentType !== TILE_TYPE.ROAD) {
+            return false;
+        }
     }
 
     return true;
@@ -355,7 +389,8 @@ function renderTail() {
 
         tailGraphics.fillStyle(box.type === 'yellow' ? COLORS.BOX_YELLOW : COLORS.BOX_RED, 1);
         // Make boxes slightly smaller to look better bunched
-        tailGraphics.fillRoundedRect(bx + 10, by + 10, TILE_SIZE - 20, TILE_SIZE - 20, 3);
+        let pad = TILE_SIZE * 0.25;
+        tailGraphics.fillRoundedRect(bx + pad, by + pad, TILE_SIZE - (pad * 2), TILE_SIZE - (pad * 2), Math.max(1, Math.floor(TILE_SIZE * 0.075)));
 
         // draw rope only if segments are adjacent (not wrapped across screen)
         if (Math.abs(bx - prevX) <= TILE_SIZE * 2 && Math.abs(by - prevY) <= TILE_SIZE * 2) {
@@ -376,157 +411,85 @@ function updateSpeed() {
     speedMultiplier = Math.max(0.2, 1.0 - (redBoxes * 0.2));
 }
 
-function createFloatingElement(x, y, offsetY, childDiv) {
-    let wrapper = document.createElement('div');
-    wrapper.style.position = 'absolute';
-
-    let canvas = document.querySelector('canvas');
-    if (canvas) {
-        let rect = canvas.getBoundingClientRect();
-        let container = document.getElementById('ui-container').getBoundingClientRect();
-        let scale = rect.width / (MAP_WIDTH * TILE_SIZE); // Map logic width is 600
-        let left = (rect.left - container.left) + (x * TILE_SIZE + TILE_SIZE / 2) * scale;
-        let top = (rect.top - container.top) + (y * TILE_SIZE + offsetY) * scale;
-
-        wrapper.style.left = `${left}px`;
-        wrapper.style.top = `${top}px`;
-        wrapper.style.transform = `scale(${scale})`;
-        wrapper.style.zIndex = 100;
-    }
-
-    wrapper.appendChild(childDiv);
-    document.getElementById('ui-container').appendChild(wrapper);
-    return wrapper;
-}
-
 function showFloatingText(htmlText, color, x, y) {
-    let t = document.createElement('div');
-    t.innerHTML = htmlText;
-    t.style.position = 'absolute';
-    t.style.left = '0';
-    t.style.top = '0';
-    t.style.color = color;
-    t.style.fontWeight = 'bold';
-    t.style.textShadow = '1px 1px 2px black';
-    t.style.pointerEvents = 'none';
-    t.style.animation = 'floatUp 1s ease-out forwards';
-    t.style.whiteSpace = 'nowrap';
-    t.style.textAlign = 'center';
-    t.style.lineHeight = '1.2';
+    if (!pcene) return;
 
-    let wrapper = createFloatingElement(x, y, 0, t);
+    // Strip HTML spans and brs for Phaser text
+    let cleanText = htmlText.replace(/<br>/gi, '\n').replace(/<[^>]+>/g, '');
 
-    setTimeout(() => {
-        wrapper.remove();
-    }, 1000);
+    let px = x * TILE_SIZE + TILE_SIZE / 2;
+    let py = y * TILE_SIZE;
+
+    let textObj = pcene.add.text(px, py, cleanText, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: Math.floor(TILE_SIZE * 0.45) + 'px',
+        color: color,
+        stroke: '#000000',
+        strokeThickness: Math.max(2, Math.floor(TILE_SIZE * 0.1)),
+        align: 'center'
+    }).setOrigin(0.5, 1).setDepth(100);
+
+    pcene.tweens.add({
+        targets: textObj,
+        y: py - TILE_SIZE * 1.5,
+        alpha: { from: 1, to: 0 },
+        ease: 'Cubic.easeOut',
+        duration: 1500,
+        onComplete: () => textObj.destroy()
+    });
 }
 
 function spawnConfetti(x, y) {
-    let canvas = document.querySelector('canvas');
-    if (!canvas) return;
-    let rect = canvas.getBoundingClientRect();
-    let container = document.getElementById('ui-container').getBoundingClientRect();
-    let scale = rect.width / (MAP_WIDTH * TILE_SIZE);
+    if (!pcene) return;
 
-    let absX = (rect.left - container.left) + (x * TILE_SIZE + TILE_SIZE / 2) * scale;
-    let absY = (rect.top - container.top) + (y * TILE_SIZE + TILE_SIZE / 2) * scale;
+    let px = x * TILE_SIZE + TILE_SIZE / 2;
+    let py = y * TILE_SIZE + TILE_SIZE / 2;
+    let colors = [0x00d166, 0x00aaff, 0xff4141, 0x8115ff, 0xffdd00];
 
     for (let i = 0; i < 20; i++) {
-        let c = document.createElement('div');
-        c.style.position = 'absolute';
-        c.style.left = absX + 'px';
-        c.style.top = absY + 'px';
-        c.style.width = '8px';
-        c.style.height = '8px';
-        let colors = ['#00d166', '#00aaff', '#ff4141', '#8115ff', '#ffdd00'];
-        c.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        c.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
-        c.style.zIndex = 200;
-        document.getElementById('ui-container').appendChild(c);
+        let c = pcene.add.circle(px, py, 4, colors[Math.floor(Math.random() * colors.length)], 1).setDepth(200);
 
         let angle = Math.random() * Math.PI * 2;
         let radius = 40 + Math.random() * 60;
-        let pX = Math.cos(angle) * radius;
-        let pY = Math.sin(angle) * radius - 40; // bias upward
+        let tx = px + Math.cos(angle) * radius;
+        let ty = py + Math.sin(angle) * radius - 40;
 
-        c.style.transition = 'all 0.6s cubic-bezier(0.1, 0.8, 0.3, 1), opacity 0.4s ease-in 0.2s';
-
-        setTimeout(() => {
-            c.style.transform = `translate(${pX}px, ${pY}px) rotate(${Math.random() * 360}deg)`;
-            c.style.opacity = '0';
-        }, 10);
-
-        setTimeout(() => c.remove(), 600);
+        pcene.tweens.add({
+            targets: c,
+            x: tx,
+            y: ty,
+            alpha: { from: 1, to: 0 },
+            ease: 'Cubic.easeOut',
+            duration: 600,
+            onComplete: () => c.destroy()
+        });
     }
 }
 
-// Add CSS for floating text animation dynamically
-if (!document.getElementById('float-anim')) {
-    let style = document.createElement('style');
-    style.id = 'float-anim';
-    style.innerHTML = `
-        @keyframes floatUp {
-            0% { transform: translate(-50%, -10px); opacity: 1; }
-            100% { transform: translate(-50%, -40px); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(style);
-}
-
 function showSpeechBubble(text, x, y) {
-    let t = document.createElement('div');
-    t.innerText = text;
-    t.style.position = 'absolute';
-    t.style.left = '0';
-    t.style.top = '0';
-    t.style.backgroundColor = 'white';
-    t.style.color = '#333';
-    t.style.padding = '8px 12px';
-    t.style.borderRadius = '16px';
-    t.style.border = '2px solid #ccc';
-    t.style.fontSize = '12px';
-    t.style.fontWeight = 'bold';
-    t.style.textAlign = 'center';
-    t.style.boxShadow = '0 4px 6px rgba(0,0,0,0.3)';
-    t.style.pointerEvents = 'none';
-    t.style.whiteSpace = 'nowrap';
+    if (!pcene) return;
 
-    // The little triangle pointing down
-    let ptr = document.createElement('div');
-    ptr.style.position = 'absolute';
-    ptr.style.bottom = '-6px';
-    ptr.style.left = '50%';
-    ptr.style.transform = 'translateX(-50%) rotate(45deg)';
-    ptr.style.width = '10px';
-    ptr.style.height = '10px';
-    ptr.style.backgroundColor = 'white';
-    ptr.style.borderRight = '2px solid #ccc';
-    ptr.style.borderBottom = '2px solid #ccc';
-    t.appendChild(ptr);
+    let px = x * TILE_SIZE + TILE_SIZE / 2;
+    let py = y * TILE_SIZE;
 
-    // Animation applies to the inner element
-    t.style.animation = 'bubbleUp 2s ease-out forwards';
+    let textObj = pcene.add.text(px, py, text, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: Math.floor(TILE_SIZE * 0.35) + 'px',
+        color: '#333333',
+        backgroundColor: '#ffffff',
+        padding: { x: 8, y: 8 },
+        align: 'center'
+    }).setOrigin(0.5, 1).setDepth(150);
 
-    let wrapper = createFloatingElement(x, y, -20, t);
-
-    setTimeout(() => {
-        wrapper.remove();
-    }, 2000);
-}
-
-if (!document.getElementById('bubble-anim')) {
-    let style = document.createElement('style');
-    style.id = 'bubble-anim';
-    style.innerHTML = `
-        @keyframes bubbleUp {
-            0% { transform: translate(-50%, 10px) scale(0.5); opacity: 0; }
-            10% { transform: translate(-50%, 0) scale(1.1); opacity: 1; }
-            20% { transform: translate(-50%, 0) scale(1); opacity: 1; }
-            80% { transform: translate(-50%, 0) scale(1); opacity: 1; }
-            100% { transform: translate(-50%, -10px) scale(0.9); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(style);
+    // Simple tween for bubble
+    pcene.tweens.add({
+        targets: textObj,
+        y: py - TILE_SIZE * 1.5,
+        alpha: { from: 1, to: 0 },
+        ease: 'Cubic.easeOut',
+        duration: 2500, // 20% slower fade
+        onComplete: () => textObj.destroy()
+    });
 }
 
 function pickupOrder(w) {
@@ -608,9 +571,7 @@ function deliverOrders() {
 
     score += totalEarned;
     document.getElementById('score').innerText = score;
-    document.getElementById('score').parentElement.classList.remove('flash');
-    void document.getElementById('score').parentElement.offsetWidth; // trigger reflow
-    document.getElementById('score').parentElement.classList.add('flash');
+    // Removed flash class toggling as the forced reflow/offsetWidth causes Safari to jump
 
     let comboPercent = Math.round((comboMultiplier - 1.0) * 100);
     if (comboPercent > 0) {
@@ -638,45 +599,64 @@ function drawPlayer() {
     let px = player.x * TILE_SIZE;
     let py = player.y * TILE_SIZE;
 
-    // Draw scooter and rider (purple uniform, blue scooter)
+    // Scale helpers
+    let s1 = TILE_SIZE * 0.1;
+    let s15 = TILE_SIZE * 0.15;
+    let s2 = TILE_SIZE * 0.2;
+    let s3 = TILE_SIZE * 0.3;
+    let s4 = TILE_SIZE * 0.4;
+    let s65 = TILE_SIZE * 0.65;
+    let s7 = TILE_SIZE * 0.7;
+    let s8 = TILE_SIZE * 0.8;
+    let rSmall = TILE_SIZE * 0.05;
+    let rMed = TILE_SIZE * 0.15;
+
     // Scooter body
     playerGraphics.fillStyle(0x0055ff, 1);
     if (playerDir.x !== 0) { // moving horizontally
-        playerGraphics.fillRoundedRect(px + 4, py + 12, 32, 16, 6);
+        playerGraphics.fillRoundedRect(px + s1, py + s3, s8, s4, rMed);
         // wheels
         playerGraphics.fillStyle(0x222222, 1);
-        playerGraphics.fillRoundedRect(px + 6, py + 8, 8, 4, 2);
-        playerGraphics.fillRoundedRect(px + 26, py + 8, 8, 4, 2);
-        playerGraphics.fillRoundedRect(px + 6, py + 28, 8, 4, 2);
-        playerGraphics.fillRoundedRect(px + 26, py + 28, 8, 4, 2);
+        playerGraphics.fillRoundedRect(px + s15, py + s2, s2, s1, rSmall);
+        playerGraphics.fillRoundedRect(px + s65, py + s2, s2, s1, rSmall);
+        playerGraphics.fillRoundedRect(px + s15, py + s7, s2, s1, rSmall);
+        playerGraphics.fillRoundedRect(px + s65, py + s7, s2, s1, rSmall);
     } else { // moving vertically or stopped
-        playerGraphics.fillRoundedRect(px + 12, py + 4, 16, 32, 6);
+        playerGraphics.fillRoundedRect(px + s3, py + s1, s4, s8, rMed);
         // wheels
         playerGraphics.fillStyle(0x222222, 1);
-        playerGraphics.fillRoundedRect(px + 8, py + 6, 4, 8, 2);
-        playerGraphics.fillRoundedRect(px + 28, py + 6, 4, 8, 2);
-        playerGraphics.fillRoundedRect(px + 8, py + 26, 4, 8, 2);
-        playerGraphics.fillRoundedRect(px + 28, py + 26, 4, 8, 2);
+        playerGraphics.fillRoundedRect(px + s2, py + s15, s1, s2, rSmall);
+        playerGraphics.fillRoundedRect(px + s7, py + s15, s1, s2, rSmall);
+        playerGraphics.fillRoundedRect(px + s2, py + s65, s1, s2, rSmall);
+        playerGraphics.fillRoundedRect(px + s7, py + s65, s1, s2, rSmall);
     }
 
     // Rider (Purple)
     // Blink if invulnerable
     if (invulnerableTimer <= 0 || Math.floor(invulnerableTimer / 100) % 2 === 0) {
         playerGraphics.fillStyle(COLORS.WAREHOUSE, 1); // purple
-        playerGraphics.fillCircle(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 8); // head/helmet
+        playerGraphics.fillCircle(px + TILE_SIZE / 2, py + TILE_SIZE / 2, s2); // head/helmet
 
         // Order box on back
         playerGraphics.fillStyle(0x555555, 1);
-        if (playerDir.x > 0) playerGraphics.fillRect(px + 4, py + 14, 10, 12); // left side
-        else if (playerDir.x < 0) playerGraphics.fillRect(px + 26, py + 14, 10, 12); // right side
-        else if (playerDir.y > 0) playerGraphics.fillRect(px + 14, py + 4, 12, 10); // top
-        else if (playerDir.y <= 0) playerGraphics.fillRect(px + 14, py + 26, 12, 10); // bottom
+        let bW = TILE_SIZE * 0.25;
+        let bH = TILE_SIZE * 0.3;
+
+        if (playerDir.x > 0) playerGraphics.fillRect(px + s1, py + TILE_SIZE * 0.35, bW, bH); // left side
+        else if (playerDir.x < 0) playerGraphics.fillRect(px + s65, py + TILE_SIZE * 0.35, bW, bH); // right side
+        else if (playerDir.y > 0) playerGraphics.fillRect(px + TILE_SIZE * 0.35, py + s1, bH, bW); // top
+        else if (playerDir.y <= 0) playerGraphics.fillRect(px + TILE_SIZE * 0.35, py + s65, bH, bW); // bottom
     }
 }
 
 function drawPulses() {
     pulseGraphics.clear();
     let alpha = (Math.sin(pulseTimer * 0.005) + 1) / 2; // 0 to 1
+
+    let t2 = TILE_SIZE / 2;
+    let t4 = TILE_SIZE / 4;
+    let t34 = TILE_SIZE * 0.75;
+    let tRad = TILE_SIZE * 0.45; // 18/40 = 0.45
 
     for (let w of warehouses) {
         let px = w.x * TILE_SIZE;
@@ -685,11 +665,11 @@ function drawPulses() {
 
         // Draw bouncing arrow or pulse
         pulseGraphics.fillStyle(c, alpha);
-        pulseGraphics.fillTriangle(px + 20, py - 10, px + 10, py - 20, px + 30, py - 20);
+        pulseGraphics.fillTriangle(px + t2, py - t4, px + t4, py - t2, px + t34, py - t2);
 
         // Aura around warehouse roof
         pulseGraphics.fillStyle(c, alpha * 0.4);
-        pulseGraphics.fillCircle(px + 20, py + 20, 18);
+        pulseGraphics.fillCircle(px + t2, py + t2, tRad);
     }
 
     for (let h of houses) {
@@ -698,13 +678,13 @@ function drawPulses() {
 
         // Blinking yellow aura
         pulseGraphics.fillStyle(COLORS.BOX_YELLOW, alpha * 0.4);
-        pulseGraphics.fillCircle(px + 20, py + 20, 18);
+        pulseGraphics.fillCircle(px + t2, py + t2, tRad);
 
         // Main blinking house icon
         let houseAlpha = 0.5 + (alpha * 0.5); // pulse from 0.5 to 1.0 opacity
         pulseGraphics.fillStyle(COLORS.BOX_YELLOW, houseAlpha);
-        pulseGraphics.fillRect(px + 12, py + 20, 16, 12); // base
-        pulseGraphics.fillTriangle(px + 20, py + 8, px + 8, py + 20, px + 32, py + 20); // roof
+        pulseGraphics.fillRect(px + TILE_SIZE * 0.3, py + t2, TILE_SIZE * 0.4, TILE_SIZE * 0.3); // base
+        pulseGraphics.fillTriangle(px + t2, py + TILE_SIZE * 0.2, px + TILE_SIZE * 0.2, py + t2, px + TILE_SIZE * 0.8, py + t2); // roof
     }
 }
 
@@ -844,28 +824,39 @@ function drawCars() {
 
         entitiesGraphics.fillStyle(car.type === 'red' ? COLORS.CAR_RED : COLORS.CAR_BLUE, 1);
 
+        let s1 = TILE_SIZE * 0.1;
+        let s2 = TILE_SIZE * 0.2;
+        let s25 = TILE_SIZE * 0.25;
+        let s5 = TILE_SIZE * 0.5;
+        let s6 = TILE_SIZE * 0.6;
+        let s75 = TILE_SIZE * 0.75;
+        let s8 = TILE_SIZE * 0.8;
+        let s9 = TILE_SIZE * 0.9;
+        let s125 = TILE_SIZE * 1.25;
+        let n25 = -TILE_SIZE * 0.25;
+
         // Car body
         if (car.dir.x !== 0) {
-            entitiesGraphics.fillRoundedRect(cx + 4, cy + 8, 32, 24, 4);
+            entitiesGraphics.fillRoundedRect(cx + s1, cy + s2, s8, s6, s1);
             // Headlights
             entitiesGraphics.fillStyle(0xffffcc, 0.6);
             if (car.dir.x > 0) { // Right
-                entitiesGraphics.fillTriangle(cx + 36, cy + 10, cx + 50, cy + 4, cx + 50, cy + 20);
-                entitiesGraphics.fillTriangle(cx + 36, cy + 30, cx + 50, cy + 20, cx + 50, cy + 36);
+                entitiesGraphics.fillTriangle(cx + s9, cy + s25, cx + s125, cy + s1, cx + s125, cy + s5);
+                entitiesGraphics.fillTriangle(cx + s9, cy + s75, cx + s125, cy + s5, cx + s125, cy + s9);
             } else { // Left
-                entitiesGraphics.fillTriangle(cx + 4, cy + 10, cx - 10, cy + 4, cx - 10, cy + 20);
-                entitiesGraphics.fillTriangle(cx + 4, cy + 30, cx - 10, cy + 20, cx - 10, cy + 36);
+                entitiesGraphics.fillTriangle(cx + s1, cy + s25, cx + n25, cy + s1, cx + n25, cy + s5);
+                entitiesGraphics.fillTriangle(cx + s1, cy + s75, cx + n25, cy + s5, cx + n25, cy + s9);
             }
         } else {
-            entitiesGraphics.fillRoundedRect(cx + 8, cy + 4, 24, 32, 4);
+            entitiesGraphics.fillRoundedRect(cx + s2, cy + s1, s6, s8, s1);
             // Headlights
             entitiesGraphics.fillStyle(0xffffcc, 0.6);
             if (car.dir.y > 0) { // Down
-                entitiesGraphics.fillTriangle(cx + 10, cy + 36, cx + 4, cy + 50, cx + 20, cy + 50);
-                entitiesGraphics.fillTriangle(cx + 30, cy + 36, cx + 20, cy + 50, cx + 36, cy + 50);
+                entitiesGraphics.fillTriangle(cx + s25, cy + s9, cx + s1, cy + s125, cx + s5, cy + s125);
+                entitiesGraphics.fillTriangle(cx + s75, cy + s9, cx + s5, cy + s125, cx + s9, cy + s125);
             } else { // Up
-                entitiesGraphics.fillTriangle(cx + 10, cy + 4, cx + 4, cy - 10, cx + 20, cy - 10);
-                entitiesGraphics.fillTriangle(cx + 30, cy + 4, cx + 20, cy - 10, cx + 36, cy - 10);
+                entitiesGraphics.fillTriangle(cx + s25, cy + s1, cx + s1, cy + n25, cx + s5, cy + n25);
+                entitiesGraphics.fillTriangle(cx + s75, cy + s1, cx + s5, cy + n25, cx + s9, cy + n25);
             }
         }
     }
@@ -933,24 +924,28 @@ function generateMap(scene) {
     // Place at the bottom-right corner of the first top-left block, adjacent to roads
     mapData[2][2] = TILE_TYPE.HOME;
 
-    // 3. Place Warehouses in blocks (Houses spawn dynamically later)
-    let blockCount = 0;
+    // 3. Place Warehouses in completely random blocks
+    let validBlocks = [];
     for (let by = 0; by < MAP_HEIGHT - 3; by += 4) {
         for (let bx = 0; bx < MAP_WIDTH - 3; bx += 4) {
-            blockCount++;
-
             if (by === 0 && bx === 0) continue; // Skip home block
-
-            // Generate Warehouse every 4-6 blocks (approx)
-            if (blockCount % BLOCKS_PER_WAREHOUSE === 0) {
-                // Place Warehouse at the edge of the block so it touches the road
-                let wx = bx + 1; // horizontally in middle
-                let wy = by + (Phaser.Math.Between(0, 1) === 0 ? 0 : 2); // vertically on edge
-                mapData[wy][wx] = TILE_TYPE.WAREHOUSE;
-                let isUrgent = Phaser.Math.Between(0, 3) === 0;
-                warehouses.push({ x: wx, y: wy, type: isUrgent ? 'red' : 'yellow' });
-            }
+            validBlocks.push({ bx, by });
         }
+    }
+
+    // Shuffle the valid blocks using Phaser utility
+    Phaser.Utils.Array.Shuffle(validBlocks);
+
+    // Pick top 3 for warehouses
+    let warehouseCount = Math.min(3, validBlocks.length);
+    for (let i = 0; i < warehouseCount; i++) {
+        let block = validBlocks[i];
+        // Place Warehouse at the edge of the block so it touches the road
+        let wx = block.bx + 1; // horizontally in middle
+        let wy = block.by + (Phaser.Math.Between(0, 1) === 0 ? 0 : 2); // vertically on edge
+        mapData[wy][wx] = TILE_TYPE.WAREHOUSE;
+        let isUrgent = Phaser.Math.Between(0, 3) === 0;
+        warehouses.push({ x: wx, y: wy, type: isUrgent ? 'red' : 'yellow' });
     }
 }
 
@@ -990,10 +985,12 @@ function drawMap() {
                 // Deterministic Tree Generation
                 let seed = x * 73 + y * 31;
                 if (seed % 3 === 0) {
+                    let tRad = TILE_SIZE * 0.25;
+                    let tOff = Math.max(1, Math.floor(TILE_SIZE * 0.05));
                     graphics.fillStyle(0x005522, 1); // Dark shadow
-                    graphics.fillCircle(px + TILE_SIZE / 2, py + TILE_SIZE / 2 + 2, 10);
+                    graphics.fillCircle(px + TILE_SIZE / 2, py + TILE_SIZE / 2 + tOff, tRad);
                     graphics.fillStyle(0x008833, 1); // Tree top
-                    graphics.fillCircle(px + TILE_SIZE / 2, py + TILE_SIZE / 2 - 2, 10);
+                    graphics.fillCircle(px + TILE_SIZE / 2, py + TILE_SIZE / 2 - tOff, tRad);
                 }
             }
             else if (tile === TILE_TYPE.WAREHOUSE) {
@@ -1001,12 +998,13 @@ function drawMap() {
                 graphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                 // White Roof
                 graphics.fillStyle(0xffffff, 1);
-                graphics.fillRoundedRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8, 4);
+                let p = Math.floor(TILE_SIZE * 0.1);
+                graphics.fillRoundedRect(px + p, py + p, TILE_SIZE - (p * 2), TILE_SIZE - (p * 2), p);
 
                 // Draw Avito logo (SVG 40x40 scaled to 24x24)
-                let ox = px + 8;
-                let oy = py + 8;
-                let s = 0.6;
+                let ox = px + TILE_SIZE * 0.2;
+                let oy = py + TILE_SIZE * 0.2;
+                let s = (TILE_SIZE / 40) * 0.6; // Scale down the base 40px matrix drawing
                 graphics.fillStyle(0x00d166, 1); graphics.fillCircle(ox + 14 * s, oy + 26 * s, 14 * s);
                 graphics.fillStyle(0x00aaff, 1); graphics.fillCircle(ox + 30 * s, oy + 11 * s, 10 * s);
                 graphics.fillStyle(0xff4141, 1); graphics.fillCircle(ox + 32 * s, oy + 30 * s, 8 * s);
@@ -1083,11 +1081,11 @@ function updateGameTimeDisplay() {
         overlay.style.zIndex = '1000';
 
         overlay.innerHTML = `
-            <h1 style="color: #00d166; font-size: 48px; margin-bottom: 20px;">СМЕНА ОКОНЧЕНА</h1>
-            <p style="font-size: 24px; color: white;">Заработано: <strong>${score} ₽</strong></p>
-            <div style="display: flex; gap: 20px; margin-top: 30px;">
-                <button onclick="location.reload()" style="padding: 15px 30px; font-size: 18px; background-color: #8115ff; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Сыграть ещё</button>
-                <button onclick="window.open('https://www.avito.ru/all/vakansii', '_blank')" style="padding: 15px 30px; font-size: 18px; background-color: #00d166; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Найти настоящую работу</button>
+            <h1 style="color: #00d166; font-size: clamp(32px, 8vw, 48px); margin-bottom: 20px; text-align: center; text-shadow: 0 4px 6px rgba(0,0,0,0.5);">СМЕНА ОКОНЧЕНА</h1>
+            <p style="font-size: clamp(18px, 5vw, 24px); color: white; text-align: center; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Заработано: <strong>${score} ₽</strong></p>
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 30px; align-items: center; width: 100%; padding: 0 20px; box-sizing: border-box;">
+                <button onclick="location.reload()" class="btn-primary" style="background-color: #8115ff; width: 100%; max-width: 300px; padding: 15px;">Сыграть ещё</button>
+                <button onclick="window.open('https://www.avito.ru/all/vakansii', '_blank')" class="btn-primary" style="width: 100%; max-width: 300px; padding: 15px;">Найти настоящую работу</button>
             </div>
         `;
         document.getElementById('ui-container').appendChild(overlay);

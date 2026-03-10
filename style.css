@@ -1,22 +1,29 @@
+html,
 body {
     margin: 0;
     padding: 0;
+    min-height: 100vh;
+    /* Fallback for browsers that do not support Custom Properties */
+    min-height: -webkit-fill-available;
     background-color: #1a1a1a;
     font-family: 'Inter', 'Roboto', sans-serif;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     align-items: center;
-    height: 100vh;
     overflow: hidden;
+    touch-action: none;
+    overscroll-behavior: none;
+    /* Prevents mobile browser scrolling/zooming on swipe */
 }
 
 #ui-container {
     position: relative;
-    width: 600px;
+    width: 100vw;
+    max-width: calc((100vh - 70px) * 0.85);
+    /* Tablet-friendly 85% aspect cap */
     height: calc(100vh - 70px);
-    /* Fill remaining space */
-    max-height: 1080px;
+    max-height: none;
 }
 
 .overlay {
@@ -34,25 +41,29 @@ body {
 
 .modal {
     background: white;
-    padding: 40px;
+    width: 90%;
+    max-width: 600px;
+    padding: clamp(24px, 4vw, 40px);
     border-radius: 16px;
     text-align: center;
     color: #333;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    max-width: 400px;
+    box-sizing: border-box;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .modal h1 {
     margin-top: 0;
-    font-size: 32px;
+    font-size: clamp(24px, 6vw, 32px);
     color: #333;
 }
 
 .modal p {
-    font-size: 16px;
+    font-size: clamp(14px, 4vw, 16px);
     line-height: 1.5;
     color: #666;
-    margin-bottom: 30px;
+    margin-bottom: 24px;
 }
 
 .logo {
@@ -84,15 +95,16 @@ body {
 }
 
 .logo-text {
-    font-size: 24px;
+    font-size: clamp(24px, 4vw, 36px);
     font-weight: bold;
     margin-left: 5px;
     vertical-align: middle;
 }
 
 .hud-bar {
-    width: 600px;
-    max-width: 100%;
+    width: 100vw;
+    max-width: calc((100vh - 70px) * 0.85);
+    /* Tablet-friendly 85% aspect cap */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -105,21 +117,17 @@ body {
 .logo-stack {
     display: flex;
     align-items: center;
-    background: white;
-    padding: 6px 10px;
-    border-radius: 8px;
-    color: #333;
-    font-size: 16px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: white;
+    font-size: clamp(16px, 2vw, 24px);
 }
 
 .icon-btn-header {
-    width: 44px;
-    height: 44px;
+    width: clamp(44px, 5vw, 60px);
+    height: clamp(44px, 5vw, 60px);
     background: white;
     border: none;
     border-radius: 8px;
-    font-size: 20px;
+    font-size: clamp(20px, 3vw, 28px);
     cursor: pointer;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
@@ -145,8 +153,8 @@ body {
     background: #00d166;
     color: white;
     border: none;
-    padding: 15px 30px;
-    font-size: 18px;
+    padding: clamp(12px, 2vw, 20px) clamp(24px, 4vw, 40px);
+    font-size: clamp(16px, 2.5vw, 24px);
     font-weight: bold;
     border-radius: 8px;
     cursor: pointer;
@@ -193,26 +201,28 @@ body {
 .money-panel {
     background: white;
     color: #333;
-    padding: 10px 20px;
+    padding: clamp(8px, 1.5vw, 16px) clamp(12px, 2vw, 24px);
     border-radius: 8px;
-    font-size: 24px;
+    font-size: clamp(20px, 3vw, 32px);
     font-weight: bold;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+    /* Prevents wrapping the currency symbol */
 }
 
 .time-panel {
     background: white;
-    padding: 10px 20px;
+    padding: clamp(8px, 1.5vw, 16px) clamp(12px, 2vw, 24px);
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 140px;
+    width: clamp(90px, 15vw, 150px);
 }
 
 .time-text {
-    font-size: 20px;
+    font-size: clamp(16px, 2.5vw, 24px);
     font-weight: bold;
     color: #333;
 }
@@ -237,6 +247,50 @@ body {
     font-size: 10px;
     color: #666;
     font-weight: bold;
+}
+
+@keyframes blinkSwipe {
+
+    0%,
+    100% {
+        opacity: 0.2;
+        transform: scale(0.9);
+    }
+
+    50% {
+        opacity: 0.8;
+        transform: scale(1.1);
+    }
+}
+
+.swipe-arrow {
+    animation: blinkSwipe 1.5s infinite ease-in-out;
+}
+
+@keyframes swipeLeftRight {
+    0% {
+        transform: translateX(-15px) scale(1);
+        opacity: 0;
+    }
+
+    20% {
+        transform: translateX(-15px) scale(0.9);
+        opacity: 1;
+    }
+
+    80% {
+        transform: translateX(15px) scale(0.9);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateX(15px) scale(1);
+        opacity: 0;
+    }
+}
+
+.swipe-hand {
+    animation: swipeLeftRight 2s infinite ease-in-out;
 }
 
 @keyframes flashText {
