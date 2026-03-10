@@ -129,6 +129,27 @@ function create() {
         if (audioCtx.state === 'suspended') audioCtx.resume();
     });
 
+    if (document.getElementById('btn-onboarding')) {
+        document.getElementById('btn-onboarding').addEventListener('click', () => {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('onboarding-screen').style.display = 'flex';
+        });
+    }
+
+    window.nextSlide = function (slideNum) {
+        document.querySelectorAll('#onboarding-screen .modal').forEach(m => m.style.display = 'none');
+        let slide = document.getElementById('slide-' + slideNum);
+        if (slide) slide.style.display = 'block';
+    };
+
+    if (document.getElementById('btn-finish-onboarding')) {
+        document.getElementById('btn-finish-onboarding').addEventListener('click', () => {
+            document.getElementById('onboarding-screen').style.display = 'none';
+            gamePaused = false;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        });
+    }
+
     document.getElementById('btn-pause').addEventListener('click', () => {
         gamePaused = true;
         document.getElementById('pause-screen').style.display = 'flex';
@@ -263,13 +284,25 @@ function initPlayer() {
 
 function canMoveTo(tx, ty) {
     if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) return false;
-    let t = mapData[ty][tx];
+    let targetType = mapData[ty][tx];
+    let currentType = mapData[player.y][player.x];
+
     // Stop on normal buildings
-    if (t === TILE_TYPE.BUILDING) return false;
+    if (targetType === TILE_TYPE.BUILDING) return false;
     // Cannot re-enter home
-    if (t === TILE_TYPE.HOME) return false;
+    if (targetType === TILE_TYPE.HOME) return false;
     // Cannot enter a house without an active order
-    if (t === TILE_TYPE.HOUSE && playerTail.length === 0) return false;
+    if (targetType === TILE_TYPE.HOUSE && playerTail.length === 0) return false;
+
+    // Strict constraint: Can only enter a warehouse/house from a ROAD.
+    // Cannot move from Warehouse -> House, House -> Warehouse, or Warehouse -> Warehouse
+    let isTargetBuilding = (targetType === TILE_TYPE.WAREHOUSE || targetType === TILE_TYPE.HOUSE);
+    let isCurrentBuilding = (currentType === TILE_TYPE.WAREHOUSE || currentType === TILE_TYPE.HOUSE);
+
+    if (isCurrentBuilding && isTargetBuilding) {
+        return false;
+    }
+
     return true;
 }
 
@@ -312,18 +345,25 @@ function renderTail() {
         let gridY = pos.y * TILE_SIZE;
 
         // Pull the box visually closer to the previous drawn box (bunching them up)
-        let bx = prevX + (gridX - prevX) * 0.6;
-        let by = prevY + (gridY - prevY) * 0.6;
+        // But ONLY if they haven't wrapped around the screen boundaries!
+        let bx = gridX;
+        let by = gridY;
+        if (Math.abs(gridX - prevX) < TILE_SIZE * 3 && Math.abs(gridY - prevY) < TILE_SIZE * 3) {
+            bx = prevX + (gridX - prevX) * 0.6;
+            by = prevY + (gridY - prevY) * 0.6;
+        }
 
         tailGraphics.fillStyle(box.type === 'yellow' ? COLORS.BOX_YELLOW : COLORS.BOX_RED, 1);
         // Make boxes slightly smaller to look better bunched
         tailGraphics.fillRoundedRect(bx + 10, by + 10, TILE_SIZE - 20, TILE_SIZE - 20, 3);
 
-        // draw rope
-        tailGraphics.lineStyle(2, 0xffffff, 0.8);
-        tailGraphics.moveTo(prevX + TILE_SIZE / 2, prevY + TILE_SIZE / 2);
-        tailGraphics.lineTo(bx + TILE_SIZE / 2, by + TILE_SIZE / 2);
-        tailGraphics.strokePath();
+        // draw rope only if segments are adjacent (not wrapped across screen)
+        if (Math.abs(bx - prevX) <= TILE_SIZE * 2 && Math.abs(by - prevY) <= TILE_SIZE * 2) {
+            tailGraphics.lineStyle(2, 0xffffff, 0.8);
+            tailGraphics.moveTo(prevX + TILE_SIZE / 2, prevY + TILE_SIZE / 2);
+            tailGraphics.lineTo(bx + TILE_SIZE / 2, by + TILE_SIZE / 2);
+            tailGraphics.strokePath();
+        }
 
         prevX = bx;
         prevY = by;
@@ -332,7 +372,8 @@ function renderTail() {
 
 function updateSpeed() {
     let redBoxes = playerTail.filter(b => b.type === 'red').length;
-    speedMultiplier = Math.max(0.1, 1.0 - (redBoxes * 0.1));
+    // Increased penalty from 10% to 20% per red box to make it more noticeable
+    speedMultiplier = Math.max(0.2, 1.0 - (redBoxes * 0.2));
 }
 
 function createFloatingElement(x, y, offsetY, childDiv) {
@@ -1044,7 +1085,10 @@ function updateGameTimeDisplay() {
         overlay.innerHTML = `
             <h1 style="color: #00d166; font-size: 48px; margin-bottom: 20px;">СМЕНА ОКОНЧЕНА</h1>
             <p style="font-size: 24px; color: white;">Заработано: <strong>${score} ₽</strong></p>
-            <button onclick="location.reload()" style="margin-top: 30px; padding: 15px 30px; font-size: 20px; background-color: #8115ff; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Начать заново</button>
+            <div style="display: flex; gap: 20px; margin-top: 30px;">
+                <button onclick="location.reload()" style="padding: 15px 30px; font-size: 18px; background-color: #8115ff; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Сыграть ещё</button>
+                <button onclick="window.open('https://www.avito.ru/all/vakansii', '_blank')" style="padding: 15px 30px; font-size: 18px; background-color: #00d166; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Найти настоящую работу</button>
+            </div>
         `;
         document.getElementById('ui-container').appendChild(overlay);
 
