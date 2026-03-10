@@ -1,0 +1,261 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #1a1a1a;
+    font-family: 'Inter', 'Roboto', sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#ui-container {
+    position: relative;
+    width: 600px;
+    height: calc(100vh - 70px);
+    /* Fill remaining space */
+    max-height: 1080px;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: white;
+    padding: 40px;
+    border-radius: 16px;
+    text-align: center;
+    color: #333;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    max-width: 400px;
+}
+
+.modal h1 {
+    margin-top: 0;
+    font-size: 32px;
+    color: #333;
+}
+
+.modal p {
+    font-size: 16px;
+    line-height: 1.5;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.logo {
+    margin-bottom: 10px;
+}
+
+.dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin: 2px;
+}
+
+.dot.purple {
+    background-color: #8115ff;
+}
+
+.dot.blue {
+    background-color: #00aaff;
+}
+
+.dot.green {
+    background-color: #00d166;
+}
+
+.dot.red {
+    background-color: #ff4141;
+}
+
+.logo-text {
+    font-size: 24px;
+    font-weight: bold;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+.hud-bar {
+    width: 600px;
+    max-width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    box-sizing: border-box;
+    background: #1a1a1a;
+    z-index: 100;
+}
+
+.logo-stack {
+    display: flex;
+    align-items: center;
+    background: white;
+    padding: 6px 10px;
+    border-radius: 8px;
+    color: #333;
+    font-size: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.icon-btn-header {
+    width: 44px;
+    height: 44px;
+    background: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.icon-btn-header:hover {
+    background: #f0f0f0;
+}
+
+.top-logo {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: white;
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    width: 36px;
+    line-height: 14px;
+}
+
+.btn-primary {
+    background: #00d166;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.2s;
+}
+
+.btn-primary:hover {
+    background: #00b355;
+    transform: scale(1.05);
+}
+
+.icon-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 40px;
+    height: 40px;
+    background: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+}
+
+.icon-btn:hover {
+    background: #f0f0f0;
+}
+
+.header {
+    position: absolute;
+    top: 15px;
+    left: 80px;
+    /* offset clear of logo */
+    right: 70px;
+    /* offset clear of pause btn */
+    display: flex;
+    justify-content: space-between;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.money-panel {
+    background: white;
+    color: #333;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 24px;
+    font-weight: bold;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.time-panel {
+    background: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 140px;
+}
+
+.time-text {
+    font-size: 20px;
+    font-weight: bold;
+    color: #333;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 6px;
+    background: #eee;
+    border-radius: 3px;
+    margin: 5px 0;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: #00aaff;
+    transition: width 0.5s linear;
+}
+
+.time-range {
+    font-size: 10px;
+    color: #666;
+    font-weight: bold;
+}
+
+@keyframes flashText {
+    0% {
+        transform: scale(1);
+        color: #00d166;
+    }
+
+    50% {
+        transform: scale(1.3);
+        color: #00aaff;
+    }
+
+    100% {
+        transform: scale(1);
+        color: #00d166;
+    }
+}
+
+.flash {
+    animation: flashText 0.5s ease-out;
+}

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Авито Курьер-Раш</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="hud-bar" id="game-header">
+        <div class="logo-stack">
+            <svg width="32" height="32" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="14" cy="26" r="14" fill="#00d166" />
+                <circle cx="30" cy="11" r="10" fill="#00aaff" />
+                <circle cx="32" cy="30" r="8" fill="#ff4141" />
+                <circle cx="12" cy="7" r="5" fill="#8115ff" />
+            </svg>
+            <strong style="margin-left: 8px;">Avito</strong>
+        </div>
+
+        <div class="money-panel">
+            <span id="score" style="color: #00d166;">0</span> ₽
+        </div>
+
+        <div class="time-panel">
+            <div class="time-text"><span id="time">08:00</span></div>
+            <div class="progress-bar-container">
+                <div id="time-progress" class="progress-bar-fill"></div>
+            </div>
+        </div>
+
+        <button id="btn-pause" class="icon-btn-header">⏸</button>
+    </div>
+
+    <div id="ui-container">
+        <!-- Start Screen -->
+        <div id="start-screen" class="overlay">
+            <div class="modal">
+                <div class="logo">
+                    <svg width="60" height="60" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"
+                        style="vertical-align: middle;">
+                        <circle cx="14" cy="26" r="14" fill="#00d166" />
+                        <circle cx="30" cy="11" r="10" fill="#00aaff" />
+                        <circle cx="32" cy="30" r="8" fill="#ff4141" />
+                        <circle cx="12" cy="7" r="5" fill="#8115ff" />
+                    </svg>
+                    <span class="logo-text">Avito</span>
+                </div>
+                <h1>Курьер-Раш</h1>
+                <p>Доставляй заказы, зарабатывай деньги и избегай ДТП!</p>
+                <button id="btn-start" class="btn-primary">Начать смену</button>
+            </div>
+        </div>
+
+        <!-- Pause Screen -->
+        <div id="pause-screen" class="overlay" style="display: none;">
+            <div class="modal">
+                <h1 style="color: #333">ПАУЗА</h1>
+                <button id="btn-resume" class="btn-primary">Продолжить</button>
+            </div>
+        </div>
+
+        <div id="game-container"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="js/game.js"></script>
+</body>
+
+</html>
