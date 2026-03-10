@@ -198,23 +198,39 @@ function update(time, delta) {
         moveTimer = 0;
 
         // Attempt to turn if nextDir is set and valid
-        if ((nextDir.x !== 0 || nextDir.y !== 0) && canMoveTo(player.x + nextDir.x, player.y + nextDir.y)) {
-            playerDir = { x: nextDir.x, y: nextDir.y };
-            nextDir = { x: 0, y: 0 };
-            isMoving = true;
+        if (nextDir.x !== 0 || nextDir.y !== 0) {
+            let turnX = player.x + nextDir.x;
+            let turnY = player.y + nextDir.y;
+            if (turnX < 0) turnX = MAP_WIDTH - 1;
+            else if (turnX >= MAP_WIDTH) turnX = 0;
+            if (turnY < 0) turnY = MAP_HEIGHT - 1;
+            else if (turnY >= MAP_HEIGHT) turnY = 0;
+
+            if (canMoveTo(turnX, turnY)) {
+                playerDir = { x: nextDir.x, y: nextDir.y };
+                nextDir = { x: 0, y: 0 };
+                isMoving = true;
+            }
         }
 
         // Move forward if moving
         if (isMoving) {
-            if (canMoveTo(player.x + playerDir.x, player.y + playerDir.y)) {
+            let nextX = player.x + playerDir.x;
+            let nextY = player.y + playerDir.y;
+            if (nextX < 0) nextX = MAP_WIDTH - 1;
+            else if (nextX >= MAP_WIDTH) nextX = 0;
+            if (nextY < 0) nextY = MAP_HEIGHT - 1;
+            else if (nextY >= MAP_HEIGHT) nextY = 0;
+
+            if (canMoveTo(nextX, nextY)) {
                 // Save history before moving
                 tailHistory.unshift({ x: player.x, y: player.y });
                 if (tailHistory.length > playerTail.length + 1) {
                     tailHistory.pop();
                 }
 
-                player.x += playerDir.x;
-                player.y += playerDir.y;
+                player.x = nextX;
+                player.y = nextY;
 
                 checkInteractions();
             } else {
@@ -342,9 +358,9 @@ function createFloatingElement(x, y, offsetY, childDiv) {
     return wrapper;
 }
 
-function showFloatingText(text, color, x, y) {
+function showFloatingText(htmlText, color, x, y) {
     let t = document.createElement('div');
-    t.innerText = text;
+    t.innerHTML = htmlText;
     t.style.position = 'absolute';
     t.style.left = '0';
     t.style.top = '0';
@@ -354,12 +370,53 @@ function showFloatingText(text, color, x, y) {
     t.style.pointerEvents = 'none';
     t.style.animation = 'floatUp 1s ease-out forwards';
     t.style.whiteSpace = 'nowrap';
+    t.style.textAlign = 'center';
+    t.style.lineHeight = '1.2';
 
     let wrapper = createFloatingElement(x, y, 0, t);
 
     setTimeout(() => {
         wrapper.remove();
     }, 1000);
+}
+
+function spawnConfetti(x, y) {
+    let canvas = document.querySelector('canvas');
+    if (!canvas) return;
+    let rect = canvas.getBoundingClientRect();
+    let container = document.getElementById('ui-container').getBoundingClientRect();
+    let scale = rect.width / (MAP_WIDTH * TILE_SIZE);
+
+    let absX = (rect.left - container.left) + (x * TILE_SIZE + TILE_SIZE / 2) * scale;
+    let absY = (rect.top - container.top) + (y * TILE_SIZE + TILE_SIZE / 2) * scale;
+
+    for (let i = 0; i < 20; i++) {
+        let c = document.createElement('div');
+        c.style.position = 'absolute';
+        c.style.left = absX + 'px';
+        c.style.top = absY + 'px';
+        c.style.width = '8px';
+        c.style.height = '8px';
+        let colors = ['#00d166', '#00aaff', '#ff4141', '#8115ff', '#ffdd00'];
+        c.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        c.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        c.style.zIndex = 200;
+        document.getElementById('ui-container').appendChild(c);
+
+        let angle = Math.random() * Math.PI * 2;
+        let radius = 40 + Math.random() * 60;
+        let pX = Math.cos(angle) * radius;
+        let pY = Math.sin(angle) * radius - 40; // bias upward
+
+        c.style.transition = 'all 0.6s cubic-bezier(0.1, 0.8, 0.3, 1), opacity 0.4s ease-in 0.2s';
+
+        setTimeout(() => {
+            c.style.transform = `translate(${pX}px, ${pY}px) rotate(${Math.random() * 360}deg)`;
+            c.style.opacity = '0';
+        }, 10);
+
+        setTimeout(() => c.remove(), 600);
+    }
 }
 
 // Add CSS for floating text animation dynamically
@@ -501,7 +558,12 @@ function deliverOrders() {
 
     // Delivery only one box (the oldest one) per house
     let box = playerTail.shift();
-    let totalEarned = box.price;
+
+    // Formula: (Base Price) * (1 + (N-1) * 0.2), where N is totally carried boxes BEFORE delivery
+    // Note: Since playerTail.shift() was already called, the current length is N - 1. 
+    // Thus the formula boils down to: Base * (1 + playerTail.length * 0.2)
+    let comboMultiplier = 1.0 + (playerTail.length * 0.2);
+    let totalEarned = Math.floor(box.price * comboMultiplier);
 
     score += totalEarned;
     document.getElementById('score').innerText = score;
@@ -509,11 +571,18 @@ function deliverOrders() {
     void document.getElementById('score').parentElement.offsetWidth; // trigger reflow
     document.getElementById('score').parentElement.classList.add('flash');
 
-    showFloatingText(`+${totalEarned} ₽`, '#00d166', player.x, player.y);
+    let comboPercent = Math.round((comboMultiplier - 1.0) * 100);
+    if (comboPercent > 0) {
+        showFloatingText(`<span style="font-size:10px; color:#ffdd00;">Combo +${comboPercent}%</span><br>+${totalEarned} ₽`, '#00d166', player.x, player.y);
+        spawnConfetti(player.x, player.y);
+        playSound('coin'); // maybe play twice or slightly different for combo in future
+    } else {
+        showFloatingText(`+${totalEarned} ₽`, '#00d166', player.x, player.y);
+        playSound('coin');
+    }
 
     tailHistory.pop(); // remove oldest history coordinate
     updateSpeed();
-    playSound('coin');
 
     // Remove the house after successful delivery
     if (mapData[player.y][player.x] === TILE_TYPE.HOUSE) {
