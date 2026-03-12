@@ -143,10 +143,12 @@
             </div>
         </div>
 
-        <!-- In-Game Swipe Hint Overlay -->
+        <!-- In-Game Swipe Hint Overlay (mobile/tablet only) -->
         <div id="swipe-hint"
             style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 100; text-align: center;">
-            <div
+
+            <!-- Mobile swipe hint (hidden on desktop via CSS) -->
+            <div id="swipe-hint-mobile"
                 style="position: relative; width: 220px; height: 220px; display: flex; align-items: center; justify-content: center;">
                 <!-- Up Chevron -->
                 <svg class="swipe-arrow" style="position: absolute; top: 0; animation-delay: 0s;" width="50" height="50"
@@ -172,7 +174,6 @@
                     stroke-linejoin="round">
                     <path d="M13 7l5 5-5 5M6 7l5 5-5 5" />
                 </svg>
-
                 <div
                     style="background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 12px; backdrop-filter: blur(4px);">
                     <h2
@@ -180,7 +181,65 @@
                         СВАЙП</h2>
                 </div>
             </div>
+
+            <!-- Desktop arrow keys hint (hidden on mobile/tablet via CSS) -->
+            <div id="swipe-hint-desktop"
+                style="display: none; flex-direction: column; align-items: center; gap: 8px; background: rgba(0,0,0,0.45); padding: 18px 24px; border-radius: 16px; backdrop-filter: blur(6px);">
+                <div style="display: flex; justify-content: center;">
+                    <kbd class="key-hint">↑</kbd>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <kbd class="key-hint">←</kbd>
+                    <kbd class="key-hint">↓</kbd>
+                    <kbd class="key-hint">→</kbd>
+                </div>
+                <p style="color: white; margin: 6px 0 0; font-size: 13px; letter-spacing: 1px; opacity: 0.8;">Используй
+                    стрелки</p>
+            </div>
         </div>
+
+        <style>
+            .key-hint {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 52px;
+                height: 52px;
+                font-size: 26px;
+                background: rgba(255, 255, 255, 0.15);
+                color: white;
+                border: 2px solid rgba(255, 255, 255, 0.5);
+                border-radius: 10px;
+                box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+                font-family: system-ui, sans-serif;
+                animation: keyPulse 1.4s ease-in-out infinite;
+            }
+
+            @keyframes keyPulse {
+
+                0%,
+                100% {
+                    opacity: 0.7;
+                    transform: translateY(0);
+                }
+
+                50% {
+                    opacity: 1;
+                    transform: translateY(-3px);
+                }
+            }
+
+            /* On desktop (pointer device, min width 1024px): hide swipe, show keys */
+            @media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
+                #swipe-hint-mobile {
+                    display: none !important;
+                }
+
+                #swipe-hint-desktop {
+                    display: flex !important;
+                }
+            }
+        </style>
 
         <div id="game-container"></div>
     </div>
