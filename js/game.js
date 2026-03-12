@@ -61,8 +61,9 @@ let warehouses = [];
 let houses = [];
 let graphics;
 let playerGraphics;
+let playerSprite;
+let playerSpriteLeft;
 let tailGraphics;
-let entitiesGraphics;
 let pulseGraphics;
 
 let cars = [];
@@ -95,7 +96,8 @@ let pcene;
 
 // Main Scene Functions
 function preload() {
-    // No external assets required, we draw everything with graphics
+    this.load.spritesheet('courier', 'assets/courier_sheet.png', { frameWidth: 256, frameHeight: 401 });
+    this.load.image('courier_left', 'assets/courier_left.png');
 }
 
 function create() {
@@ -130,6 +132,17 @@ function create() {
     tailGraphics = this.add.graphics();
     pulseGraphics = this.add.graphics();
     playerGraphics = this.add.graphics();
+
+    playerSprite = this.add.sprite(0, 0, 'courier');
+    playerSprite.setOrigin(0.5, 0.5);
+    playerSprite.setDepth(10);
+    playerSprite.setVisible(false);
+
+    playerSpriteLeft = this.add.image(0, 0, 'courier_left');
+    playerSpriteLeft.setOrigin(0.5, 0.5);
+    playerSpriteLeft.setDepth(10);
+    playerSpriteLeft.setVisible(false);
+
     entitiesGraphics = this.add.graphics();
 
     generateMap(this);
@@ -542,6 +555,12 @@ function spawnHouse() {
         let hx = bx + Phaser.Math.Between(0, 2);
         let hy = by + (Phaser.Math.Between(0, 1) === 0 ? 0 : 2);
 
+        // Prevent spawning on the outer edges of the map
+        if (hx <= 0 || hx >= MAP_WIDTH - 1 || hy <= 0 || hy >= MAP_HEIGHT - 1) {
+            attempts++;
+            continue;
+        }
+
         if (mapData[hy] && mapData[hy][hx] === TILE_TYPE.BUILDING) {
             // Must be adjacent to road
             let dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
@@ -598,54 +617,53 @@ function drawPlayer() {
     playerGraphics.clear();
     let px = player.x * TILE_SIZE;
     let py = player.y * TILE_SIZE;
+    let t = TILE_SIZE;
 
-    // Scale helpers
-    let s1 = TILE_SIZE * 0.1;
-    let s15 = TILE_SIZE * 0.15;
-    let s2 = TILE_SIZE * 0.2;
-    let s3 = TILE_SIZE * 0.3;
-    let s4 = TILE_SIZE * 0.4;
-    let s65 = TILE_SIZE * 0.65;
-    let s7 = TILE_SIZE * 0.7;
-    let s8 = TILE_SIZE * 0.8;
-    let rSmall = TILE_SIZE * 0.05;
-    let rMed = TILE_SIZE * 0.15;
+    // --- Background/Shadow ---
+    playerGraphics.fillStyle(0x000000, 0.4);
+    playerGraphics.fillEllipse(px + t * 0.5, py + t * 0.8, t * 0.6, t * 0.2);
 
-    // Scooter body
-    playerGraphics.fillStyle(0x0055ff, 1);
-    if (playerDir.x !== 0) { // moving horizontally
-        playerGraphics.fillRoundedRect(px + s1, py + s3, s8, s4, rMed);
-        // wheels
-        playerGraphics.fillStyle(0x222222, 1);
-        playerGraphics.fillRoundedRect(px + s15, py + s2, s2, s1, rSmall);
-        playerGraphics.fillRoundedRect(px + s65, py + s2, s2, s1, rSmall);
-        playerGraphics.fillRoundedRect(px + s15, py + s7, s2, s1, rSmall);
-        playerGraphics.fillRoundedRect(px + s65, py + s7, s2, s1, rSmall);
-    } else { // moving vertically or stopped
-        playerGraphics.fillRoundedRect(px + s3, py + s1, s4, s8, rMed);
-        // wheels
-        playerGraphics.fillStyle(0x222222, 1);
-        playerGraphics.fillRoundedRect(px + s2, py + s15, s1, s2, rSmall);
-        playerGraphics.fillRoundedRect(px + s7, py + s15, s1, s2, rSmall);
-        playerGraphics.fillRoundedRect(px + s2, py + s65, s1, s2, rSmall);
-        playerGraphics.fillRoundedRect(px + s7, py + s65, s1, s2, rSmall);
+    // Hide all initially
+    playerSprite.setVisible(false);
+    playerSpriteLeft.setVisible(false);
+
+    let activeSprite = playerSprite;
+
+    // 20% smaller dimensions
+    // Previous vertical was 1.5w, 2.3h -> now 1.2w, 1.84h
+    let hScale = t * 1.84;
+
+    if (playerDir.x > 0) {
+        // Moving Right - use flipped left sprite
+        activeSprite = playerSpriteLeft;
+        activeSprite.setFlipX(true);
+        activeSprite.setDisplaySize(hScale * (626 / 1024), hScale);
+        activeSprite.setPosition(px + t * 0.5, py + t * 0.3);
+    } else if (playerDir.x < 0) {
+        // Moving Left
+        activeSprite = playerSpriteLeft;
+        activeSprite.setFlipX(false);
+        activeSprite.setDisplaySize(hScale * (626 / 1024), hScale);
+        activeSprite.setPosition(px + t * 0.5, py + t * 0.3);
+    } else {
+        // Moving Up, Down, or Idle
+        activeSprite = playerSprite;
+        activeSprite.setDisplaySize(t * 1.2, hScale);
+        activeSprite.setPosition(px + t * 0.5, py + t * 0.3);
+        if (playerDir.y < 0) {
+            activeSprite.setFrame(1); // Up
+        } else {
+            activeSprite.setFrame(0); // Down (default)
+        }
     }
 
-    // Rider (Purple)
+    activeSprite.setVisible(true);
+
     // Blink if invulnerable
     if (invulnerableTimer <= 0 || Math.floor(invulnerableTimer / 100) % 2 === 0) {
-        playerGraphics.fillStyle(COLORS.WAREHOUSE, 1); // purple
-        playerGraphics.fillCircle(px + TILE_SIZE / 2, py + TILE_SIZE / 2, s2); // head/helmet
-
-        // Order box on back
-        playerGraphics.fillStyle(0x555555, 1);
-        let bW = TILE_SIZE * 0.25;
-        let bH = TILE_SIZE * 0.3;
-
-        if (playerDir.x > 0) playerGraphics.fillRect(px + s1, py + TILE_SIZE * 0.35, bW, bH); // left side
-        else if (playerDir.x < 0) playerGraphics.fillRect(px + s65, py + TILE_SIZE * 0.35, bW, bH); // right side
-        else if (playerDir.y > 0) playerGraphics.fillRect(px + TILE_SIZE * 0.35, py + s1, bH, bW); // top
-        else if (playerDir.y <= 0) playerGraphics.fillRect(px + TILE_SIZE * 0.35, py + s65, bH, bW); // bottom
+        activeSprite.setAlpha(1);
+    } else {
+        activeSprite.setAlpha(0.2);
     }
 }
 
@@ -940,12 +958,32 @@ function generateMap(scene) {
     let warehouseCount = Math.min(3, validBlocks.length);
     for (let i = 0; i < warehouseCount; i++) {
         let block = validBlocks[i];
-        // Place Warehouse at the edge of the block so it touches the road
-        let wx = block.bx + 1; // horizontally in middle
-        let wy = block.by + (Phaser.Math.Between(0, 1) === 0 ? 0 : 2); // vertically on edge
-        mapData[wy][wx] = TILE_TYPE.WAREHOUSE;
-        let isUrgent = Phaser.Math.Between(0, 3) === 0;
-        warehouses.push({ x: wx, y: wy, type: isUrgent ? 'red' : 'yellow' });
+
+        let spotFound = false;
+        let attempts = 0;
+        while (!spotFound && attempts < 50) {
+            let wx = block.bx + Phaser.Math.Between(0, 2);
+            let wy = block.by + Phaser.Math.Between(0, 2);
+
+            // Prevent placing warehouses on the absolute edges of the map
+            if (wx <= 0 || wx >= MAP_WIDTH - 1 || wy <= 0 || wy >= MAP_HEIGHT - 1) {
+                attempts++;
+                continue;
+            }
+
+            if (mapData[wy] && mapData[wy][wx] === TILE_TYPE.BUILDING) {
+                // Must be adjacent to road
+                let dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+                let hasRoad = dirs.some(d => mapData[wy + d.y] && mapData[wy + d.y][wx + d.x] === TILE_TYPE.ROAD);
+                if (hasRoad) {
+                    mapData[wy][wx] = TILE_TYPE.WAREHOUSE;
+                    let isUrgent = Phaser.Math.Between(0, 3) === 0;
+                    warehouses.push({ x: wx, y: wy, type: isUrgent ? 'red' : 'yellow' });
+                    spotFound = true;
+                }
+            }
+            attempts++;
+        }
     }
 }
 
